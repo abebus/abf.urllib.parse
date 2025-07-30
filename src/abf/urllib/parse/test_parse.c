@@ -1,6 +1,5 @@
 #include "parse.h"
 #include <stdio.h>
-#include <string.h>
 
 void print_component(const char *name, url_component_t *comp) {
     printf("%s: ", name);
@@ -24,17 +23,17 @@ int main() {
     print_component("params", &result.params);
     print_component("query", &result.query);
     print_component("fragment", &result.fragment);
-    printf("has_params: %d\n", result.has_params);
+    printf("has_params: %d\n", (int)result.has_params);
 
     // Test quote
     const char *to_quote = "abc def/!";
-    quote_result_t qres;
-    err = url_quote(to_quote, strlen(to_quote), "/", 1, &qres);
+    char quoted[128];
+    size_t quoted_len = 0;
+    err = url_quote(to_quote, strlen(to_quote), "/", 1, quoted, sizeof(quoted), &quoted_len);
     if (err != URL_PARSE_OK) {
         printf("url_quote error: %d\n", err);
         return 1;
     }
-    printf("quoted: %s\n", qres.data);
-    quote_result_free(&qres);
+    printf("quoted: %s\n", quoted);
     return 0;
 }
