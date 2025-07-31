@@ -4,14 +4,8 @@ import timeit
 
 with open("top100.txt", "r") as f:
     URLS = f.readlines()
+    S = URLS
 
-S = [
-    "abc def/!@#%&*()_+",
-    "a" * 100,
-    "a b c d e f g h i j k l m n o p q r s t u v w x y z",
-    "!" * 50,
-    "/foo/bar/baz?x=1&y=2#frag",
-]
 print(URLS[0])
 def bench_abfparse_urlparse():
     for url in URLS:

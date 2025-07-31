@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "parse.h"
 #include <ctype.h>
 #include <inttypes.h>
@@ -216,13 +217,21 @@ url_parse_error_t url_parse(char *url, size_t url_len, const char *scheme,
         }
     }
     if (uses_params) {
-        const char *semicolon =
-            memchr(result->path.start, ';', result->path.length);
+        // Only split params at the first ';' in the last segment of the path
+        // (after last '/')
+        const char *path_start = result->path.start;
+        size_t path_len = result->path.length;
+        // Use memrchr to find the last '/'
+        const char *last_slash = NULL;
+        last_slash = memrchr(path_start, '/', path_len);
+
+        const char *segment_start = last_slash ? last_slash + 1 : path_start;
+        size_t segment_len = path_len - (segment_start - path_start);
+        const char *semicolon = memchr(segment_start, ';', segment_len);
         if (semicolon) {
-            size_t plen = (size_t)(semicolon - result->path.start);
+            size_t plen = (size_t)(semicolon - path_start);
             url_component_t params_tmp;
-            p_set_component(&params_tmp, semicolon + 1,
-                            result->path.length - plen - 1);
+            p_set_component(&params_tmp, semicolon + 1, path_len - plen - 1);
             result->params = params_tmp;
             result->path.length = plen;
             result->has_params = true;
