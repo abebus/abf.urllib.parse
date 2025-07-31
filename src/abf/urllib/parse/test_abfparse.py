@@ -8,7 +8,7 @@ url_errors = defaultdict(list)
 for filename in ["top100.txt", "userbait.txt", "wikipedia_100k.txt", "linux_files.txt", "node_files.txt", "kasztp.txt", "isaacs_files.txt"]:
     with open(filename) as f:
         for url in f:
-            abfparseres = abfparse.url_parse(url)
+            abfparseres = abfparse.urlparse(url)
             pyres = urllib.parse.urlparse(url)
             errs = []
 

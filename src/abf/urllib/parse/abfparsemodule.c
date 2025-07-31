@@ -4,12 +4,12 @@
 
 // Helper: convert url_component_t to Python str
 static inline PyObject *component_to_pystr(const url_component_t *comp) {
-    return PyUnicode_FromStringAndSize(comp->start, comp->length);
+    return PyUnicode_FromStringAndSize(comp->start, (Py_ssize_t)comp->length);
 }
 
 // Helper: convert url_component_t to Python bytes
 static inline PyObject *component_to_pybytes(const url_component_t *comp) {
-    return PyBytes_FromStringAndSize(comp->start, comp->length);
+    return PyBytes_FromStringAndSize(comp->start, (Py_ssize_t)comp->length);
 }
 
 // Global references to urllib.parse.ParseResult and ParseResultBytes types
@@ -145,10 +145,10 @@ static PyObject *abf_url_quote(PyObject *self, PyObject *args,
 }
 
 static PyMethodDef AbfParseMethods[] = {
-    {"url_parse", (PyCFunction)abf_url_parse, METH_VARARGS | METH_KEYWORDS,
-     "Fast url_parse(url, scheme='', allow_fragments=True) -> tuple"},
-    {"url_quote", (PyCFunction)abf_url_quote, METH_VARARGS | METH_KEYWORDS,
-     "Fast url_quote(s, safe='/') -> str"},
+    {"urlparse", (PyCFunction)abf_url_parse, METH_VARARGS | METH_KEYWORDS,
+     "Faster urlparse(url, scheme='', allow_fragments=True) -> tuple"},
+    {"quote", (PyCFunction)abf_url_quote, METH_VARARGS | METH_KEYWORDS,
+     "Faster quote(s, safe='/') -> str"},
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef abfparsemodule = {

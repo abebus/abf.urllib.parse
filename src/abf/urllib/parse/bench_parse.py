@@ -9,7 +9,7 @@ with open("top100.txt", "r") as f:
 print(URLS[0])
 def bench_abfparse_urlparse():
     for url in URLS:
-        abfparse.url_parse(url)
+        abfparse.urlparse(url)
 
 def bench_urllib_urlparse():
     for url in URLS:
@@ -17,7 +17,7 @@ def bench_urllib_urlparse():
 
 def bench_abfparse_quote():
     for s in S:
-        abfparse.url_quote(s)
+        abfparse.quote(s)
 
 def bench_urllib_quote():
     for s in S:
