@@ -5,19 +5,24 @@
 #include <stdlib.h>
 
 enum {
-    URL_SAFE_TABLE_SIZE = 256,
+    ASCII_SIZE = 256,
     URL_PERCENT_ENCODED_LEN = 3,
     URL_WHITESPACE_LAST =
         0x20, // WHATWG: 0x00 - 0x20 ascii characters are stripped
     NIBBLE_BITS = 4,
     NIBBLE_MASK = 0xF
 };
-
-static const bool p_URL_SAFE_ALWAYS[URL_SAFE_TABLE_SIZE] = {
-    ['A' ... 'Z'] = true, ['a' ... 'z'] = true, ['0' ... '9'] = true,
-    ['-'] = true,         ['.'] = true,         ['_'] = true,
-    ['~'] = true};
-
+// clang-format off
+static const bool p_URL_SAFE_ALWAYS[ASCII_SIZE] = {
+    ['A' ... 'Z'] = true,
+    ['a' ... 'z'] = true,
+    ['0' ... '9'] = true,
+    ['-'] = true,
+    ['.'] = true,
+    ['_'] = true,
+    ['~'] = true
+};
+// clang-format on
 typedef struct {
     const char *name;
     size_t len;
@@ -38,8 +43,8 @@ p_URL_SCHEMES_WITH_PARAMS(size_t *count) {
 
 static inline void p_percent_encode(char c, char *input, size_t *out_idx) {
     static const char hex[] = "0123456789ABCDEF";
-    input[--(*out_idx)] = hex[c & 0xF];
-    input[--(*out_idx)] = hex[(c >> 4) & 0xF];
+    input[--(*out_idx)] = hex[c & NIBBLE_MASK];
+    input[--(*out_idx)] = hex[(c >> NIBBLE_BITS) & NIBBLE_MASK];
     input[--(*out_idx)] = '%';
 }
 
@@ -49,29 +54,29 @@ static inline void p_set_component(url_component_t *comp, const char *start,
     comp->length = len;
 }
 
-static inline void p_lstrip_ws(const char **s, size_t *len) {
-    size_t i = 0, n = *len;
-    const char *str = *s;
-    while (i < n && (unsigned char)str[i] <= URL_WHITESPACE_LAST) {
+static inline void p_lstrip_ws(const char **url, size_t *url_len) {
+    size_t i = 0, n = *url_len;
+    const char *tmp_str = *url;
+    while (i < n && (unsigned char)tmp_str[i] <= URL_WHITESPACE_LAST) {
         i++;
     }
-    *s = str + i;
-    *len = n - i;
+    *url = tmp_str + i;
+    *url_len = n - i;
 }
 
 static inline void p_rstrip_ws(const char **url, size_t *url_len) {
     size_t n = *url_len;
-    const char *s = *url;
+    const char *tmp_str = *url;
 
-    while (n > 0 && (unsigned char)s[n - 1] <= URL_WHITESPACE_LAST) {
+    while (n > 0 && (unsigned char)tmp_str[n - 1] <= URL_WHITESPACE_LAST) {
         n--;
     }
 
-    *url = s;
+    *url = tmp_str;
     *url_len = n;
 }
 
-static const bool p_UNSAFE_CHARS[256] = {
+static const bool p_UNSAFE_CHARS[ASCII_SIZE] = {
     ['\t'] = true, ['\r'] = true, ['\n'] = true};
 
 // Helper: remove unsafe bytes from a buffer inline
@@ -259,7 +264,7 @@ url_parse_error_t url_quote(char *buf, size_t orig_str_len, const char *safe,
         bool is_safe = p_URL_SAFE_ALWAYS[(unsigned char)c] ||
                        (safe && safe_len && memchr(safe, c, safe_len));
         is_safe_arr[i] = is_safe;
-        needed += is_safe ? 1 : 3;
+        needed += is_safe ? 1 : URL_PERCENT_ENCODED_LEN;
     }
 
     size_t inp_idx = orig_str_len;
