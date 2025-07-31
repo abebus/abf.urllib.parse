@@ -3,9 +3,7 @@
 #include <Python.h>
 
 // Helper: convert url_component_t to Python str or None
-static PyObject *component_to_pystr(const url_component_t *comp) {
-    if (!comp->start || comp->length == 0)
-        PyUnicode_FromString("");
+static inline PyObject *component_to_pystr(const url_component_t *comp) {
     return PyUnicode_FromStringAndSize(comp->start, comp->length);
 }
 
@@ -79,9 +77,12 @@ static PyObject *abf_url_quote(PyObject *self, PyObject *args,
 
     // clang-format off
     int err;
+    size_t bufsize = s_len * 3 + 1;
+    char buf[bufsize];
+    memcpy(buf, s, s_len);
     
     Py_BEGIN_ALLOW_THREADS
-    err = url_quote(s, (size_t)s_len, safe, (size_t)safe_len);
+    err = url_quote(buf, s_len, safe, (size_t)safe_len);
     Py_END_ALLOW_THREADS
 
     if (err != URL_PARSE_OK) {
@@ -89,7 +90,7 @@ static PyObject *abf_url_quote(PyObject *self, PyObject *args,
         return NULL;
     }
     // clang-format on
-    PyObject *pyres = PyUnicode_FromStringAndSize(s, (Py_ssize_t)strlen(s));
+    PyObject *pyres = PyUnicode_FromString(buf);
     return pyres;
 }
 

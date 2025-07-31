@@ -26,7 +26,7 @@ int main() {
     printf("has_params: %d\n", (int)result.has_params);
 
     // Test quote (use mutable buffer, sized for worst-case expansion)
-    const char *orig = "abc def/!";
+    const char *orig = "abc !@(* $)(@! 091-84 1-2def/!\n'n'n'n\n\n\n\n\t\t\t\t";
     size_t orig_len = strlen(orig);
     size_t bufsize = orig_len * 3 + 1; // worst-case: every char encoded
     char buf[bufsize];

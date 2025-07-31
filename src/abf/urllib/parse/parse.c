@@ -238,30 +238,30 @@ url_parse_error_t url_parse(char *url, size_t url_len, const char *scheme,
 }
 
 // url_quote: percent-encode all except "safe" chars inplace
-url_parse_error_t url_quote(char *input, size_t input_len, const char *safe,
+url_parse_error_t url_quote(char *buf, size_t orig_str_len, const char *safe,
                             size_t safe_len) {
     // In-place percent-encode: since encoding expands, must process backwards
     // 1. Calculate needed space
     size_t needed = 0;
-    for (size_t i = 0; i < input_len; ++i) {
-        char c = input[i];
+    for (size_t i = 0; i < orig_str_len; ++i) {
+        char c = buf[i];
         bool is_safe = p_URL_SAFE_ALWAYS[(unsigned char)c] ||
                        (safe && safe_len && memchr(safe, c, safe_len));
         needed += is_safe ? 1 : 3;
     }
     // 2. Check if buffer is large enough (should always be true for VLA caller)
     // 3. Process backwards for in-place percent-encoding
-    size_t inp_idx = input_len;
+    size_t inp_idx = orig_str_len;
     size_t out_idx = needed;
-    input[out_idx] = '\0'; // Null-terminate
+    buf[out_idx] = '\0'; // Null-terminate
     while (inp_idx > 0) {
-        char c = input[--inp_idx];
+        char c = buf[--inp_idx];
         bool is_safe = p_URL_SAFE_ALWAYS[(unsigned char)c] ||
                        (safe && safe_len && memchr(safe, c, safe_len));
         if (is_safe) {
-            input[--out_idx] = c;
+            buf[--out_idx] = c;
         } else {
-            p_percent_encode((char)c, input, &out_idx);
+            p_percent_encode(c, buf, &out_idx);
         }
     }
     return URL_PARSE_OK;
