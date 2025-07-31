@@ -17,14 +17,13 @@ static PyObject *parse_result_type = NULL;
 static PyObject *abf_url_parse(PyObject *self, PyObject *args,
                                PyObject *kwargs) {
     // Parse arguments
-    const char *url = NULL, *scheme = NULL;
-    Py_ssize_t url_len = 0, scheme_len = 0;
+    char *url = NULL, *scheme = NULL;
+    Py_ssize_t url_len = 0;
     bool allow_fragments = true;
     static char *kwlist[] = {"url", "scheme", "allow_fragments", NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#|s#p", kwlist, &url,
-                                     &url_len, &scheme, &scheme_len,
-                                     &allow_fragments)) {
+                                     &url_len, &scheme, &allow_fragments)) {
         return NULL;
     }
 
@@ -34,7 +33,7 @@ static PyObject *abf_url_parse(PyObject *self, PyObject *args,
     int err;
     
     Py_BEGIN_ALLOW_THREADS 
-    err = url_parse(url, (size_t)url_len, scheme, (size_t)scheme_len,
+    err = url_parse(url, (size_t)url_len, scheme,
                   allow_fragments, &result);
     Py_END_ALLOW_THREADS
 
@@ -70,46 +69,27 @@ static PyObject *abf_url_parse(PyObject *self, PyObject *args,
 static PyObject *abf_url_quote(PyObject *self, PyObject *args,
                                PyObject *kwargs) {
     // Parse arguments
-    const char *s = NULL, *safe = "/";
+    char *s = NULL;
+    const char *safe = "/";
     Py_ssize_t s_len = 0, safe_len = 1;
     static char *kwlist[] = {"s", "safe", NULL};
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s#|s#", kwlist, &s, &s_len,
                                      &safe, &safe_len))
         return NULL;
 
-    // Allocate buffer for quoted string
-    size_t max_quoted = (size_t)s_len * 3 + 1;
-    char stack_buf[4096];
-    char *quoted =
-        (max_quoted <= sizeof(stack_buf)) ? stack_buf : malloc(max_quoted);
-    if (!quoted) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-
-    // Perform quoting
     // clang-format off
-    size_t quoted_len = 0;
     int err;
-
+    
     Py_BEGIN_ALLOW_THREADS
-    err = url_quote(s, (size_t)s_len, safe, (size_t)safe_len, quoted, max_quoted,
-                  &quoted_len);
+    err = url_quote(s, (size_t)s_len, safe, (size_t)safe_len);
     Py_END_ALLOW_THREADS
 
     if (err != URL_PARSE_OK) {
-        if (quoted != stack_buf) {
-            free(quoted);
-        }
         PyErr_SetString(PyExc_ValueError, "abf_url_quote: quote error");
         return NULL;
     }
     // clang-format on
-
-    // Build Python string result
-    PyObject *pyres = PyUnicode_FromStringAndSize(quoted, quoted_len);
-    if (quoted != stack_buf)
-        free(quoted);
+    PyObject *pyres = PyUnicode_FromStringAndSize(s, (Py_ssize_t)strlen(s));
     return pyres;
 }
 

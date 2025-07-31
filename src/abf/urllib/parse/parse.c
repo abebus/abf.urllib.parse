@@ -1,5 +1,6 @@
 #include "parse.h"
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdlib.h>
 
 enum {
@@ -7,9 +8,7 @@ enum {
     URL_PERCENT_ENCODED_LEN = 3,
     URL_WHITESPACE_MAX = 0x20, // 0x00 - 0x20 ascii charters are skipped
     NIBBLE_BITS = 4,
-    NIBBLE_MASK = 0xF,
-    PERCENT_ENCODE_OK = 0,
-    PERCENT_ENCODE_NOT_OK = 1
+    NIBBLE_MASK = 0xF
 };
 
 // --- Safe character lookup table ---
@@ -28,18 +27,12 @@ static inline const char *const *p_URL_SCHEMES_WITH_PARAMS(size_t *count) {
     return schemes;
 }
 
-// Helper: percent-encode a byte into a fixed buffer, returns 0 on success, -1
-// if not enough space
-static inline int p_percent_encode_buf(char c, char *out, size_t *out_idx,
-                                       size_t buf_cap) {
+// Helper: percent-encode a byte
+static inline void p_percent_encode(char c, char *input, size_t *out_idx) {
     static const char hex[] = "0123456789ABCDEF";
-    if (*out_idx + 3 >= buf_cap) {
-        return PERCENT_ENCODE_NOT_OK;
-    }
-    out[(*out_idx)++] = '%';
-    out[(*out_idx)++] = hex[(c >> NIBBLE_BITS) & NIBBLE_MASK];
-    out[(*out_idx)++] = hex[c & NIBBLE_MASK];
-    return PERCENT_ENCODE_OK;
+    input[--(*out_idx)] = hex[c & 0xF];
+    input[--(*out_idx)] = hex[(c >> 4) & 0xF];
+    input[--(*out_idx)] = '%';
 }
 
 // Helper: set url_component_t
@@ -49,18 +42,21 @@ static inline void p_set_component(url_component_t *comp, const char *start,
     comp->length = len;
 }
 
-// Helper: skip leading and trailing C0/control/space
-static inline void p_strip_ws(const char **url, size_t *url_len) {
-    size_t i = 0;
-    size_t n = *url_len;
-    const char *s = *url;
-
-    // Skip leading
-    while (i < n && (unsigned char)s[i] <= URL_WHITESPACE_MAX) {
+// Helper: left-strip C0/control/space
+static inline void p_lstrip_ws(const char **s, size_t *len) {
+    size_t i = 0, n = *len;
+    const char *str = *s;
+    while (i < n && (unsigned char)str[i] <= URL_WHITESPACE_MAX) {
         i++;
     }
-    s += i;
-    n -= i;
+    *s = str + i;
+    *len = n - i;
+}
+
+// Helper: right-strip C0/control/space
+static inline void p_rstrip_ws(const char **url, size_t *url_len) {
+    size_t n = *url_len;
+    const char *s = *url;
 
     // Skip trailing
     while (n > 0 && (unsigned char)s[n - 1] <= URL_WHITESPACE_MAX) {
@@ -69,6 +65,31 @@ static inline void p_strip_ws(const char **url, size_t *url_len) {
 
     *url = s;
     *url_len = n;
+}
+
+// Helper: remove unsafe bytes from a buffer, write to user buffer
+static inline void p_remove_unsafe_bytes(char **url, size_t *url_len) {
+    static const char unsafe[] = {'\t', '\r', '\n'};
+    char *buf = *url;
+    size_t len = *url_len;
+    size_t out = 0;
+    for (size_t i = 0; i < len; ++i) {
+        char c = buf[i];
+        int is_unsafe = 0;
+        for (size_t j = 0; j < sizeof(unsafe); ++j) {
+            if (c == unsafe[j]) {
+                is_unsafe = 1;
+                break;
+            }
+        }
+        if (!is_unsafe) {
+            if (out != i) {
+                memmove(&buf[out], &buf[i], 1);
+            }
+            out++;
+        }
+    }
+    *url_len = out;
 }
 
 // Helper: validate scheme
@@ -98,9 +119,8 @@ static inline size_t p_extract_netloc(const char *url, size_t url_len) {
 }
 
 // Fast url_split implementation (no unicode, no CPython API)
-url_parse_error_t url_split(const char *url, size_t url_len, const char *scheme,
-                            size_t scheme_len, bool allow_fragments,
-                            url_split_result_t *result) {
+url_parse_error_t url_split(char *url, size_t url_len, const char *scheme,
+                            bool allow_fragments, url_split_result_t *result) {
     // Initialize all components to empty
     p_set_component(&result->scheme, NULL, 0);
     p_set_component(&result->netloc, NULL, 0);
@@ -109,16 +129,25 @@ url_parse_error_t url_split(const char *url, size_t url_len, const char *scheme,
     p_set_component(&result->fragment, NULL, 0);
 
     // 1. Strip leading spaces/control chars (WHATWG)
-    p_strip_ws(&url, &url_len);
+    p_lstrip_ws((const char **)&url, &url_len);
+    // Remove unsafe chars in-place
+    p_remove_unsafe_bytes(&url, &url_len);
 
     // 2. Scheme detection
     const char *colon = memchr(url, ':', url_len);
-    if (p_is_valid_scheme(url, colon)) {
-        p_set_component(&result->scheme, url, colon - url);
-        url_len -= (colon - url + 1);
-        url = colon + 1;
-    } else if (scheme && scheme_len) {
-        p_set_component(&result->scheme, scheme, scheme_len);
+    if (colon) {
+        // Prepare scheme for validation
+        const char *scheme_start = url;
+        size_t scheme_len = (size_t)(colon - url);
+        p_lstrip_ws(&scheme_start, &scheme_len); // Strip both sides for scheme
+        p_rstrip_ws(&scheme_start, &scheme_len); // Strip both sides for scheme
+        if (p_is_valid_scheme(scheme_start, scheme_start + scheme_len)) {
+            p_set_component(&result->scheme, scheme_start, scheme_len);
+            url_len -= (colon - url + 1);
+            url = (char *)colon + 1;
+        } else if (scheme && scheme_len) {
+            p_set_component(&result->scheme, scheme, scheme_len);
+        }
     }
 
     // 3. Netloc
@@ -154,12 +183,11 @@ url_parse_error_t url_split(const char *url, size_t url_len, const char *scheme,
 }
 
 // url_parse: also split params (Python legacy)
-url_parse_error_t url_parse(const char *url, size_t url_len, const char *scheme,
-                            size_t scheme_len, bool allow_fragments,
-                            url_parse_result_t *result) {
+url_parse_error_t url_parse(char *url, size_t url_len, const char *scheme,
+                            bool allow_fragments, url_parse_result_t *result) {
     url_split_result_t split;
     url_parse_error_t err =
-        url_split(url, url_len, scheme, scheme_len, allow_fragments, &split);
+        url_split(url, url_len, scheme, allow_fragments, &split);
     if (err != URL_PARSE_OK) {
         return err;
     }
@@ -209,34 +237,32 @@ url_parse_error_t url_parse(const char *url, size_t url_len, const char *scheme,
     return URL_PARSE_OK;
 }
 
-// url_quote: percent-encode all except "safe" chars, write to user buffer,
-// malloc-free
-url_parse_error_t url_quote(const char *input, size_t input_len,
-                            const char *safe, size_t safe_len, char *buf,
-                            size_t buf_cap, size_t *out_len) {
-    size_t out_idx = 0;
-    for (size_t inp_idx = 0; inp_idx < input_len; ++inp_idx) {
-        char c = (char)input[inp_idx];
+// url_quote: percent-encode all except "safe" chars inplace
+url_parse_error_t url_quote(char *input, size_t input_len, const char *safe,
+                            size_t safe_len) {
+    // In-place percent-encode: since encoding expands, must process backwards
+    // 1. Calculate needed space
+    size_t needed = 0;
+    for (size_t i = 0; i < input_len; ++i) {
+        char c = input[i];
+        bool is_safe = p_URL_SAFE_ALWAYS[(unsigned char)c] ||
+                       (safe && safe_len && memchr(safe, c, safe_len));
+        needed += is_safe ? 1 : 3;
+    }
+    // 2. Check if buffer is large enough (should always be true for VLA caller)
+    // 3. Process backwards for in-place percent-encoding
+    size_t inp_idx = input_len;
+    size_t out_idx = needed;
+    input[out_idx] = '\0'; // Null-terminate
+    while (inp_idx > 0) {
+        char c = input[--inp_idx];
         bool is_safe = p_URL_SAFE_ALWAYS[(unsigned char)c] ||
                        (safe && safe_len && memchr(safe, c, safe_len));
         if (is_safe) {
-            if (out_idx + 1 >= buf_cap) {
-                return URL_PARSE_ERROR_OUT_OF_MEMORY;
-            }
-            buf[out_idx++] = c;
+            input[--out_idx] = c;
         } else {
-            if (p_percent_encode_buf(c, buf, &out_idx, buf_cap) !=
-                PERCENT_ENCODE_OK) {
-                return URL_PARSE_ERROR_OUT_OF_MEMORY;
-            }
+            p_percent_encode((char)c, input, &out_idx);
         }
-    }
-    if (out_idx + 1 > buf_cap) {
-        return URL_PARSE_ERROR_OUT_OF_MEMORY;
-    }
-    buf[out_idx] = '\0';
-    if (out_len) {
-        *out_len = out_idx;
     }
     return URL_PARSE_OK;
 }
