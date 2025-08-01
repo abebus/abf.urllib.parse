@@ -1,47 +1,27 @@
 import abfparse
 import urllib.parse
+import pytest
 
-from collections import defaultdict
+test_files = [
+    "top100.txt", "userbait.txt", "wikipedia_100k.txt",
+    "linux_files.txt", "node_files.txt", "kasztp.txt", "isaacs_files.txt"
+]
 
-url_errors = defaultdict(list)
-
-for filename in ["top100.txt", "userbait.txt", "wikipedia_100k.txt", "linux_files.txt", "node_files.txt", "kasztp.txt", "isaacs_files.txt"]:
+@pytest.fixture(params=test_files)
+def file(request):
+    filename = request.param
     with open(filename) as f:
-        for url in f:
-            abfparseres = abfparse.urlparse(url)
-            pyres = urllib.parse.urlparse(url)
-            errs = []
+        yield f
 
-            if not isinstance(abfparseres, type(pyres)):
-                errs.append(f"Type: abfparse.url_parse does not return ParseResult: {type(abfparseres)} vs {type(pyres)}")
-            if abfparseres.scheme != pyres.scheme:
-                errs.append(f"Scheme: {abfparseres.scheme=!r} != {pyres.scheme=!r}")
-            if abfparseres.netloc != pyres.netloc:
-                errs.append(f"Netloc: {abfparseres.netloc=!r} != {pyres.netloc=!r}")
-            if abfparseres.path != pyres.path:
-                errs.append(f"Path: {abfparseres.path=!r} != {pyres.path=!r}")
-            if abfparseres.params != pyres.params:
-                errs.append(f"Params: {abfparseres.params=!r} != {pyres.params=!r}")
-            if abfparseres.query != pyres.query:
-                errs.append(f"Query: {abfparseres.query=!r} != {pyres.query=!r}")
-            if abfparseres.fragment != pyres.fragment:
-                errs.append(f"Fragment: {abfparseres.fragment=!r} != {pyres.fragment=!r}")
-            if abfparseres != pyres:
-                errs.append(f"ParseResult: {abfparseres=!r} != {pyres=!r}")
-
-            if errs:
-                print(f"\nDEBUG: repr(url): {repr(url)}")
-                print(f"DEBUG: type(url): {type(url)}")
-                print(f"DEBUG: abfparseres.fragment: {repr(abfparseres.fragment)}")
-                print(f"DEBUG: pyres.fragment: {repr(pyres.fragment)}")
-                url_errors[url.strip()] += errs
-
-if not url_errors:
-    print("All tests passed.")
-else:
-    print(f"Total URLs with errors: {len(url_errors)}")
-    for url, errs in url_errors.items():
-        print(f"\nURL: {url}")
-        print(f"\nURL encoded: {url.encode("ascii")}")
-        for err in errs:
-            print(f"  - {err}")
+def test_abfparse_matches_stdlib(file):
+    for url in file:
+        abfparseres = abfparse.urlparse(url)
+        pyres = urllib.parse.urlparse(url)
+        assert isinstance(abfparseres, type(pyres)), f"Type: {type(abfparseres)} vs {type(pyres)}"
+        assert abfparseres.scheme == pyres.scheme, f"Scheme: {abfparseres.scheme!r} != {pyres.scheme!r}"
+        assert abfparseres.netloc == pyres.netloc, f"Netloc: {abfparseres.netloc!r} != {pyres.netloc!r}"
+        assert abfparseres.path == pyres.path, f"Path: {abfparseres.path!r} != {pyres.path!r}"
+        assert abfparseres.params == pyres.params, f"Params: {abfparseres.params!r} != {pyres.params!r}"
+        assert abfparseres.query == pyres.query, f"Query: {abfparseres.query!r} != {pyres.query!r}"
+        assert abfparseres.fragment == pyres.fragment, f"Fragment: {abfparseres.fragment!r} != {pyres.fragment!r}"
+        assert abfparseres == pyres, f"ParseResult: {abfparseres!r}"
