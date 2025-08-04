@@ -1,0 +1,1 @@
+this currently reimplements `urlparse`, `urlsplit` and `quote`
