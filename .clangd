@@ -1,0 +1,12 @@
+If:
+  PathMatch: .* # applies to all files
+CompileFlags:
+  Add: [-std=c23, -I/usr/include/python3.12] # use modern C (C23)
+  Remove: [-std=c++*] # just in case
+  Compiler: gcc # help clangd find proper C headers
+
+---
+If:
+  PathMatch: .*\.h$
+CompileFlags:
+  Add: [-x, c-header] # treat .h as C headers

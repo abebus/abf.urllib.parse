@@ -1,0 +1,23 @@
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abf"
+version = "0.0.0.0001"
+description = "A Bit Faster (abf) reimplementations of Python's standard library modules."
+authors = [{ name = "abebus", email = "anamaev263@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+
+[[tool.setuptools.ext-modules]]
+name = "abf.urllib.parse"
+sources = ["src/abf/urllib/parse/module.c", "src/abf/urllib/parse/parse.c"]
+include-dirs = ["src/abf/urllib/parse"]
+extra-compile-args = ["-Wall", "-Wextra", "-O3", "-march=native"]
+language = "c"
+
+[dependency-groups]
+dev = ["pytest>=8.4.1", "pytest-benchmark>=5.1.0"]
